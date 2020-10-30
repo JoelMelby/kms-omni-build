@@ -28,64 +28,23 @@ source "$BASEPATH/bash.conf.sh" || exit 1
 
 
 
-# Parse call arguments
-# --------------------
-
-CFG_GDB="false"
-
-while [[ $# -gt 0 ]]; do
-    case "${1-}" in
-        --gdb) CFG_GDB="true" ;;
-        *)
-            log "ERROR: Unknown argument '${1-}'"
-            log "Run with '--help' to read usage details"
-            exit 1
-            ;;
-    esac
-    shift
-done
-
-
-
-# Apply config logic
-# ------------------
-
-log "CFG_GDB=$CFG_GDB"
-
-
-
 BUILD_DIR="build-RelWithDebInfo-clang-docker"
 
 # Prepare run environment
 # -----------------------
 
-RUN_VARS=()
-RUN_WRAPPER=""
-
-if [[ "$CFG_GDB" == "true" ]]; then
-    # RUN_WRAPPER="gdb -ex 'run' --args"
-    RUN_WRAPPER="gdb --args"
-    RUN_VARS+=("G_DEBUG='fatal-warnings'")
-fi
-
-
-RUN_VARS+=(
-    "GST_DEBUG='3,Kurento*:4,kms*:4,sdp*:4,webrtc*:4,*rtpendpoint:4,rtp*handler:4,rtpsynchronizer:4,agnosticbin:4'"
+RUN_VARS="GST_DEBUG='3,Kurento*:4,kms*:4,sdp*:4,webrtc*:4,*rtpendpoint:4,rtp*handler:4,rtpsynchronizer:4,agnosticbin:4'"
 
 
 
 # Run Kurento Media Server
 # ------------------------
 
-pushd "$BUILD_DIR" || exit 1  # Enter $BUILD_DIR
+pushd "$BUILD_DIR"  # Enter $BUILD_DIR
 
 # Always run `make`: if any source file changed, it needs building; if nothing
 # changed since last time, it is a "no-op" anyway
 make -j"$(nproc)"
-
-if [[ "$CFG_BUILD_ONLY" == "true" ]]; then
-    exit 0
-fi
 
 # System limits: Set maximum open file descriptors
 # Maximum limit value allowed by Ubuntu: 2^20 = 1048576
@@ -101,12 +60,7 @@ ulimit -c unlimited
 #echo "$KERNEL_CORE_PATH" | sudo tee /proc/sys/kernel/core_pattern >/dev/null
 
 # Prepare the final command
-COMMAND=""
-for RUN_VAR in "${RUN_VARS[@]:-}"; do
-    [[ -n "$RUN_VAR" ]] && COMMAND="$COMMAND $RUN_VAR"
-done
-
-COMMAND="$COMMAND $RUN_WRAPPER"
+COMMAND="$RUN_VARS"
 
 # NOTE: "--gst-disable-registry-fork" is used to prevent GStreamer from
 # spawning a helper process that loads plugins, which can cause confusing
@@ -123,4 +77,4 @@ COMMAND="$COMMAND kurento-media-server/server/kurento-media-server \
 log "Run command: $COMMAND"
 eval "$COMMAND" "$@"
 
-popd || exit 1  # Exit $BUILD_DIR
+popd  # Exit $BUILD_DIR
